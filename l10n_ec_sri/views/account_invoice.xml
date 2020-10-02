@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <!-- Factura de compra -->
+        <record id="view_invoice_supplier_form_ec" model="ir.ui.view">
+            <field name="name">account.invoice.supplier.form.ec</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='state']" position="before">
+                    <button name="button_marcar_reembolso" states="draft" string="REEMBOLSO DE GASTOS" confirm="¿Está seguro que desea marcar esta factura como un reembolso de gastos." groups="account.group_account_invoice" type="object" />
+                    <button name="button_draft" states="reembolso" string="CANCELAR" type="object" groups="account.group_account_invoice" />
+                    <button name="button_prepare_sri_declaration" string="GENERAR IMPUESTOS" type="object" invisible="1" />
+                    <button name="button_anular_secuencial" string="Anular Secuencial" type="object" confirm="¿Esta seguro de anular el secuencial de la retención?" attrs="{'invisible': [('secretencion1','=',False)]}" groups="account.group_account_invoice" />
+                    <button name="sri_legalizar_documento" string="LEGALIZAR" type="object" attrs="{'invisible': ['|',('secretencion1','!=',False),('state', 'not in', ('open','paid'))]}" groups="account.group_account_invoice" />
+                </xpath>
+                <xpath expr="//field[@name='journal_id']" position="replace"/>
+                <xpath expr="//field[@name='invoice_date_due']" position="after">
+
+                    <field name="journal_id" groups="account.group_account_user" options="{'no_create': True}" attrs="{'readonly':[('invoice_line_ids.move_name','!=',False)]}"/>
+                    <field name="intermediario_id" options="{'no_create_edit': True, 'no_create': True, 'no_open': True}" attrs="{'invisible': [('type','=','entry')]}" />
+                </xpath>
+                <xpath expr="//field[@name='partner_id']" position="replace">
+                    <field string="Proveedor" attrs="{'invisible': [('type','=','entry')]}" name="partner_id" context="{'default_customer': 0, 'search_default_supplier': 1, 'default_supplier': 1, 'show_address': 1}" domain="[('supplier_rank', '>', 0)]" options="{'always_reload': True}" />
+                </xpath>
+                <xpath expr="//field[@name='partner_id']" position="after">
+                    <field name="comprobante_id" attrs="{'invisible': ['|',('type','=','entry'),('type','=','in_receipt')]}" domain="[('en_compras','=',True)]" options="{'no_create_edit': True, 'no_create': True, 'no_open': True}"/>
+                    <field name="comprobante_code" invisible="1"/>
+                    <field name="comprobante_aut" invisible="1"/>
+                    <field name="autorizacion_id" domain="[('comprobante_id', '=', comprobante_id), ('fechavencimiento','&gt;=', invoice_date)]" attrs="{'invisible':['|',('type','in',('in_receipt','entry','out_invoice')),('comprobante_code', '!=', '03')]}" context="{'default_comprobante_id': comprobante_id}"/>
+                    <label for="secuencial" attrs="{'invisible': [('type','=','entry')]}"/>
+                    <div class="o_address_format">
+                        <field name="establecimiento" placeholder="001" class="o_address_city" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                        <field name="puntoemision" placeholder="001" class="o_address_city" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                        <field name="secuencial" placeholder="000000001" class="o_address_state" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                    </div>
+                    <field name="autorizacion" placeholder="1234567890" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+
+                </xpath>
+
+                <xpath expr="//notebook/page" position="after">
+                    <page string="IMPUESTOS" attrs="{'invisible': [('type','=','entry')]}">
+                        <button name="button_registrar_retencion_manual" string="Registar retención manual" attrs="{'invisible':['|','|',('secretencion1','!=',False),('type', '!=', 'in_invoice'),('state','=','draft')]}" context="{'default_invoice_id': active_id}" type="object" groups="account.group_account_invoice" />
+                        <button name="button_anular_retencion_manual" string="Anular retención manual" type="object" groups="account.group_account_invoice" attrs="{'invisible':['|','|',('secretencion1','=',False),('type', '!=', 'in_invoice'),('state','=','draft')]}" />
+                        <group string="Información de la Retención">
+                            <field name="r_comprobante_id"/>
+                            <field name="fechaemiret1"/>
+                            <field name="r_autorizacion_id"/>
+                            <label for="secretencion1"/>
+                            <div class="o_address_format">
+                                <field name="estabretencion1" placeholder="001" class="o_address_city" />
+                                <field name="ptoemiretencion1" placeholder="001" class="o_address_state" />
+                                <field name="secretencion1" placeholder="000000001" class="o_address_zip" />
+                            </div>
+                            <field name="autretencion1" placeholder="1234567890"/>
+                            <field name="retencion_automatica"/>
+                        </group>
+                        <group string="ANEXOS TRANSACCIONAL">
+                            <field name="sri_ats_line_ids" nolabel="1" readonly="1"/>
+                        </group>
+                        <group string="DETALLE DE IMPUESTOS">
+                            <field name="sri_tax_line_ids" nolabel="1" readonly="1"/>
+                        </group>
+                        <group name="purchase_retentions" string="RETENCIONES MANUALES EN COMPRAS" attrs="{'invisible':[('type', '!=', 'in_invoice')]}">
+                            <field name="r_sri_tax_line_ids" nolabel="1" readonly="1">
+                                <tree>
+                                    <field name="fecha_declaracion"/>
+                                    <field name="formulario"/>
+                                    <field name="campo"/>
+                                    <field name="base"/>
+                                    <field name="amount"/>
+                                    <field name="group"/>
+                                    <field name="porcentaje"/>
+                                    <field name="impuesto"/>
+                                </tree>
+                            </field>
+                        </group>
+                    </page>
+                    <page name="reembolso" string="REEMBOLSOS" attrs="{'invisible':[('intermediario_id','!=',True)]}">
+                        <group string="Reembolsado en">
+                            <field name="reembolso_ids" readonly="1" />
+                        </group>
+                    </page>
+                </xpath>
+                <!-- Revisar esto se encuentra en otra vista y no en esta  -->
+                <!-- <field name="move_id" position="after">
+                    <field name="r_move_id" readonly="1" />
+                </field> -->
+                <!--  <xpath expr="//field[@name='amount_untaxed']" position="replace">
+                    <field name="baseimpgrav" invisible="1"/>
+                    <field name="baseimponible" />
+                    <field name="basenograiva" attrs="{'invisible':[('basenograiva', '==', 0.0)]}" />
+                    <field name="baseimpexe" attrs="{'invisible':[('baseimpexe', '==', 0.0)]}"/>
+                    <field name="subtotal" class="oe_subtotal_footer_separator" />
+                </xpath> -->
+                <xpath expr="//field[@name='amount_total']" position="before">
+                    <field name="montoiva" />
+                    <field name="montoice" attrs="{'invisible':[('montoice', '==', 0.0)]}" />
+                </xpath>
+                <xpath expr="//field[@name='amount_total']" position="replace">
+                    <!-- <field name="total" class="oe_subtotal_footer_separator" />
+                    <field name="no_declarado" attrs="{'invisible':[('no_declarado', '==', 0.0)]}"/>
+                    jv -->
+                </xpath>
+                <!--tabla de impuestos
+                <xpath expr="//field[@name='tax_line_ids']/tree" position="attributes">
+                    <attribute name="delete">0</attribute>
+                    <attribute name="create">0</attribute>
+                </xpath>
+                jv -->
+
+            </field>
+        </record>
+        <record id="view_invoice_supplier_form_ec" model="ir.ui.view">
+            <field name="name">account.invoice.supplier.form.ec</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='date']" position="before">
+
+                    <field name="journal_id" attrs="{'invisible':[('type','not in',('entry','in_receipt'))]}"/>
+
+                </xpath>
+            </field>
+        </record>
+
+
+
+        <!-- Factura de venta -->
+        <record id="view_invoice_form_ec" model="ir.ui.view">
+            <field name="name">account.invoice.form.ec</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <field name="state" position="before">
+                    <button name="button_anular_secuencial" string="Anular Secuencial" type="object" attrs="{'invisible': ['|',('secuencial','=',False),('type','=','entry')]}" confirm="¿Esta seguro de anular el secuencial de la factura o nota de credito?" groups="account.group_account_invoice" />
+                    <button name="sri_legalizar_documento" string="LEGALIZAR" type="object" attrs="{'invisible': ['|', ('secuencial','!=',False), ('state','not in',('open','paid'))]}" groups="account.group_account_invoice" />
+                </field>
+                <xpath expr="//field[@name='journal_id']" position="replace"/>
+                <xpath expr="//field[@name='partner_id']" position="after">
+                    <field name="comprobante_id" domain="[('en_ventas','=',True)]" options="{'no_create': True, 'no_create_edit': True, 'no_open': True}" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                    <field name="comprobante_aut" invisible="1"/>
+                    <field name="comprobante_code" invisible="1"/>
+                    <field name="autorizacion_id" domain="[('comprobante_id', '=', comprobante_id), ('fechavencimiento','&gt;=', invoice_date)]" attrs="{'invisible':['|',('type','in',('in_receipt','entry','in_invoice')),('comprobante_code', '=', '03')]}" context="{'default_comprobante_id': comprobante_id}"/>
+                    <label for="secuencial" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                    <div class="o_address_format">
+                        <field name="establecimiento" placeholder="001" class="o_address_city" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                        <field name="puntoemision" placeholder="001" class="o_address_city" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                        <field name="secuencial" placeholder="000000001" class="o_address_state" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                    </div>
+                    <field name="autorizacion" placeholder="1234567890" attrs="{'invisible': ['|',('type','=','in_receipt'),('type','=','entry')]}"/>
+                </xpath>
+                <xpath expr="//field[@name='invoice_user_id']" position="before">
+                    <field name="move_name" invisible="1"/>
+                    <field name="journal_id" groups="account.group_account_user" options="{'no_create': True}" attrs="{'readonly':[('move_name','!=',False)]}"/>
+                    <!--  -->
+                </xpath>
+                <xpath expr="//field[@name='tax_line_id']" position="replace">
+                    <field name="tax_line_id" />
+                </xpath>
+
+                <!-- <xpath expr="//group[@class='oe_subtotal_footer']" position="before">
+                    <field name="tax_ids">
+                        <tree>
+                            <field name="name"/>
+                            <field name="description"/>
+                        </tree>
+                    </field>
+                </xpath> -->
+                <xpath expr="//notebook/page" position="after">
+                    <page string="IMPUESTOS" attrs="{'invisible': [('type','in',('entry','in_receipt'))]}">
+                        <button name="button_registrar_retencion_manual" string="Registar retención manual" attrs="{'invisible':['|','|', ('secretencion1','!=',False),('type', '!=', 'out_invoice'),('state','=','draft')]}" type="object" groups="account.group_account_invoice" />
+                        <button name="button_anular_retencion_manual" string="Anular retención manual" type="object" groups="account.group_account_invoice" attrs="{'invisible':['|','|', ('secretencion1','=',False),('type', '!=', 'out_invoice'),('state','=','draft')]}" />
+
+                        <group string="Información de la Retención">
+                            <field name="r_comprobante_id"/>
+                            <field name="fechaemiret1"/>
+                            <label for="secretencion1"/>
+                            <div class="o_address_format">
+                                <field name="estabretencion1" placeholder="001" class="o_address_city"/>
+                                <field name="ptoemiretencion1" placeholder="001" class="o_address_state"/>
+                                <field name="secretencion1" placeholder="000000001" class="o_address_zip"/>
+                            </div>
+                            <field name="autretencion1" placeholder="1234567890"/>
+                        </group>
+                        <group string="ANEXOS TRANSACCIONAL">
+                            <field name="sri_ats_line_ids" nolabel="1" readonly="1"/>
+                        </group>
+                        <group string="DETALLE DE IMPUESTOS">
+                            <field name="sri_tax_line_ids" nolabel="1" readonly="1"/>
+                        </group>
+                        <group name="sale_retentions" string="RETENCIONES MANUALES EN VENTAS" attrs="{'invisible':[('type', '!=', 'out_invoice')]}">
+                            <field name="r_sri_tax_line_ids" nolabel="1" readonly="1">
+                                <tree>
+                                    <field name="fecha_declaracion"/>
+                                    <field name="formulario"/>
+                                    <field name="campo"/>
+                                    <field name="base"/>
+                                    <field name="amount"/>
+                                    <field name="group"/>
+                                    <field name="porcentaje"/>
+                                    <field name="impuesto"/>
+                                </tree>
+                            </field>
+                        </group>
+                    </page>
+                    <page name="reembolso" string="REEMBOLSOS" attrs="{'invisible':[('comprobante_code','!=','41')]}">
+                        <group string="Documentos reembolsados">
+                            <field name="documento_reembolsado_ids" nolabel="1" />
+                        </group>
+                    </page>
+                </xpath>
+                <!-- Move Id no esta en la vista padre no se usa esta en otra vista-->
+                <!-- <field name="move_id" position="after">
+                    <field name="r_move_id" readonly="1" />
+                </field> -->
+            </field>
+        </record>
+
+        <!-- Vista lista facturas proveedores -->
+        <record id="invoice_supplier_tree_ec" model="ir.ui.view">
+            <field name="name">Invoice Ecuador tree view</field>
+            <field name="model">account.move</field>
+            <field name="type">tree</field>
+            <field name="inherit_id" ref="account.view_move_tree"/>
+            <field name="arch" type="xml">
+                <data>
+                    <xpath expr="//field[@name='ref']" position="replace">
+                        <field name="secuencial" />
+                    </xpath>
+                    <xpath expr="//field[@name='secuencial']" position="before">
+                        <field name="autorizacion_id" invisible="1"/>
+                        <field name="secretencion1"/>
+                    </xpath>
+                    <xpath expr="//field[@name='amount_total_signed']" position="replace">
+                        <!-- <field name="total" />
+                        <field name="no_declarado"/>
+                         jv -->
+                    </xpath>
+
+                </data>
+            </field>
+        </record>
+
+        <!-- Vista simplificada para información de retenciones -->
+        <record id="view_invoice_tree_ret" model="ir.ui.view">
+            <field name="name">Invoice Ecuador retention tree view</field>
+            <field name="model">account.move</field>
+            <field name="type">tree</field>
+            <field name="arch" type="xml">
+                <tree >
+                    <field name="partner_id" />
+                    <field name="invoice_date" />
+                    <field name="name" />
+                    <field name="secretencion1" />
+                    <field name="fechaemiret1" />
+                    <field name="state" />
+                </tree>
+            </field>
+        </record>
+
+        <!-- Vista lista facturas clientes -->
+        <record id="invoice_tree_ec" model="ir.ui.view">
+            <field name="name">Invoice Ecuador tree view</field>
+            <field name="model">account.move</field>
+            <field name="type">tree</field>
+            <field name="inherit_id" ref="account.view_invoice_tree"/>
+            <field name="arch" type="xml">
+                <data>
+                    <xpath expr="//field[@name='invoice_origin']" position="replace">
+                        <field name="secuencial" />
+                    </xpath>
+                    <xpath expr="//field[@name='secuencial']" position="before">
+                        <field name="autorizacion_id"/>
+                    </xpath>
+                    <xpath expr="//field[@name='amount_total_signed']" position="replace">
+                        <field name="total" />
+                    </xpath>
+                </data>
+            </field>
+        </record>
+
+        <record id="view_invoice_line_form" model="ir.ui.view">
+            <field name="name">ats.account.invoice.line.form</field>
+            <field name="model">account.move.line</field>
+            <field name="inherit_id" ref="account.view_move_line_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//form" position="inside">
+                    <group string="Líneas de impuestos">
+                        <field name="sri_tax_line_ids" nolabel="1"/>
+                    </group>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Vista búsqueda facturas -->
+        <record id="view_account_invoice_filter_sri" model="ir.ui.view">
+            <field name="name">Invoice - SRI Search View</field>
+            <field name="model">account.move</field>
+            <field name="type">search</field>
+            <field name="inherit_id" ref="account.view_account_invoice_filter"/>
+            <field name="arch" type="xml">
+                <data>
+                    <xpath expr="//field[@name='name']" position="before">
+                        <field name="secuencial" />
+                    </xpath>
+                    <xpath expr="//field[@name='name']" position="after">
+                        <field name="autorizacion_id" />
+                    </xpath>
+                </data>
+            </field>
+        </record>
+    </data>
+</odoo>
